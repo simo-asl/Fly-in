@@ -26,5 +26,3 @@ class Color(str, Enum):
     LIME = "\033[38;5;118m"
     DARKBROWN = "\033[38;5;94m"
 
-
-print(Color.ORANGE + "This is red text" + Color.DEFAULT)
