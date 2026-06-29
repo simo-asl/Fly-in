@@ -49,7 +49,7 @@ class MultipleDefinitionError(ParsingError):
     pass
 
 
-class InvalidOrderingError(ParsingError):
+class InvalidSequnceError(ParsingError):
     """Raised when sequential constraints are violated during parsing."""
 
     pass
@@ -216,8 +216,8 @@ class Errors:
     ) -> None:
         """Checks alignment structural signatures across link parsing steps."""
         error_message = (
-            f"Invalid format for connection at line {
-                line_number}: '{raw_line}'"
+            f"Invalid format for connection at line {line_number}: "
+            f"'{raw_line}'"
         )
         raise InvalidStructureError(error_message)
 
@@ -440,7 +440,7 @@ class MetadataErrors:
         raise InvalidValueError(error_message)
 
 
-class OrderingErrors:
+class SequnceErrors:
     """Factory handling lifecycle validation checkpoints for phases."""
 
     @classmethod
@@ -452,7 +452,7 @@ class OrderingErrors:
             f"Ordering constraint violation: '{entity_type}' at line "
             f"{line_number} defined before nb_drones line: '{raw_line}'"
         )
-        raise InvalidOrderingError(error_message)
+        raise InvalidSequnceError(error_message)
 
     @classmethod
     def report_preceded_start_hub(
@@ -463,7 +463,7 @@ class OrderingErrors:
             f"Ordering constraint violation: '{entity_type}' at line "
             f"{line_number} defined before start_hub line: '{raw_line}'"
         )
-        raise InvalidOrderingError(error_message)
+        raise InvalidSequnceError(error_message)
 
     @classmethod
     def report_preceded_end_hub(
@@ -474,4 +474,4 @@ class OrderingErrors:
             f"Ordering constraint violation: '{entity_type}' at line "
             f"{line_number} defined before end_hub line: '{raw_line}'"
         )
-        raise InvalidOrderingError(error_message)
+        raise InvalidSequnceError(error_message)
