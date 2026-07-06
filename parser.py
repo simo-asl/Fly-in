@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from enums import LineType, ZoneType
 from errors import DuplicatedConnection, Errors, MetadataErrors, SequnceErrors
@@ -39,6 +39,18 @@ class Zone:
     color: str = "none"
     max_drones: int = 1
     declaration_type: ZoneType = ZoneType.HUB
+    reservations: dict[int, int] = field(default_factory=dict)
+
+    def is_available_at(self, turn: int, extra: int = 1) -> bool:
+        """Return True if the zone can accept `extra` drones at `turn`."""
+        if self.declaration_type in (ZoneType.START_HUB, ZoneType.END_HUB):
+            return True
+        occupied = self.reservations.get(turn, 0)
+        return occupied + extra <= self.max_drones
+
+    def reserve_at(self, turn: int, extra: int = 1) -> None:
+        """Reserve `extra` slots at a specific `turn`."""
+        self.reservations[turn] = self.reservations.get(turn, 0) + extra
 
 
 @dataclass
@@ -48,6 +60,16 @@ class Connection:
     source: str
     destination: str
     max_link_capacity: int = 1
+    reservations: dict[int, int] = field(default_factory=dict)
+
+    def is_available_at(self, turn: int, extra: int = 1) -> bool:
+        """Return True if the connection has capacity at `turn`."""
+        used = self.reservations.get(turn, 0)
+        return used + extra <= self.max_link_capacity
+
+    def reserve_at(self, turn: int, extra: int = 1) -> None:
+        """Reserve `extra` slots on the connection at `turn`."""
+        self.reservations[turn] = self.reservations.get(turn, 0) + extra
 
 
 class Parser:
@@ -221,7 +243,7 @@ class Parser:
         )
 
         zone_kind = "normal"
-        color = "white"
+        color = "none"
         max_drones = 1
 
         for key, value in metadata.items():
@@ -508,47 +530,55 @@ class Parser:
 
     def parse(self) -> None:
         """Parse the full map file and populate parser attributes."""
-        while True:
-            raw_line = self.file_reader.read_line()
-            if raw_line is None:
-                break
+        try:
+            while True:
+                raw_line = self.file_reader.read_line()
+                if raw_line is None:
+                    break
 
-            line_number = self.file_reader.line_number
-            line_type = self.__detect_line_type(raw_line)
-            self.__ensure_nb_drones_first(raw_line, line_number, line_type)
+                line_number = self.file_reader.line_number
+                line_type = self.__detect_line_type(raw_line)
+                self.__ensure_nb_drones_first(raw_line, line_number, line_type)
 
-            if line_type == LineType.UNKNOWN:
-                Errors.report_bad_line_type(raw_line, line_number)
+                if line_type == LineType.UNKNOWN:
+                    Errors.report_bad_line_type(raw_line, line_number)
 
-            if (
-                line_type != LineType.NB_DRONES
-                and self._nb_drones_decl is None
-            ):
-                SequnceErrors.report_preceded_drones_definition(
-                    raw_line,
-                    line_type.value,
-                    line_number,
-                )
+                if (
+                    line_type != LineType.NB_DRONES
+                    and self._nb_drones_decl is None
+                ):
+                    SequnceErrors.report_preceded_drones_definition(
+                        raw_line,
+                        line_type.value,
+                        line_number,
+                    )
 
-            if line_type == LineType.NB_DRONES:
-                self.__parse_nb_drones(raw_line, line_number)
-                continue
+                if line_type == LineType.NB_DRONES:
+                    self.__parse_nb_drones(raw_line, line_number)
+                    continue
 
-            if line_type in (
-                LineType.HUB,
-                LineType.START_HUB,
-                LineType.END_HUB,
-            ):
-                zone = self.__parse_zone_line(
-                    raw_line,
-                    line_number,
-                    line_type,
-                )
-                self.__register_zone(raw_line, line_number, line_type, zone)
-                continue
+                if line_type in (
+                    LineType.HUB,
+                    LineType.START_HUB,
+                    LineType.END_HUB,
+                ):
+                    zone = self.__parse_zone_line(
+                        raw_line,
+                        line_number,
+                        line_type,
+                    )
+                    self.__register_zone(
+                        raw_line,
+                        line_number,
+                        line_type,
+                        zone,
+                    )
+                    continue
 
-            if line_type == LineType.CONNECTION:
-                self.__parse_connection(raw_line, line_number)
+                if line_type == LineType.CONNECTION:
+                    self.__parse_connection(raw_line, line_number)
 
-        self.__validate_required_fields()
-        self.__build_graph()
+            self.__validate_required_fields()
+            self.__build_graph()
+        finally:
+            self.file_reader.close()

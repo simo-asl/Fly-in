@@ -14,6 +14,11 @@ class FileReader:
         """Open the file for reading."""
         self.file = open(self.file_path, "r")
 
+    def close(self) -> None:
+        """Close the underlying file handle if it is open."""
+        if not self.file.closed:
+            self.file.close()
+
     def read_line(self) -> str | None:
         """Read a line from the file and return it."""
         while True:
