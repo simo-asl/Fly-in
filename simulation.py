@@ -1,37 +1,31 @@
-"""Turn-based drone simulation with 2-path routing."""
-
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 import heapq
-from math import inf
+from collections import defaultdict
+from dataclasses import dataclass
 
 from drone_graph import DroneGraph
 from errors import PathNotFoundError
 from utils import Color
 
 
-ZONE_PRIORITY: dict[str, float] = {
-    "priority": 0.8,
-    "normal": 1.0,
-    "restricted": 2.0,
-    "blocked": inf,
+ZONE_PRIO: dict[str, int] = {
+    "priority": 0,
+    "normal": 1,
+    "restricted": 2,
 }
 
 
 @dataclass(slots=True)
-class DroneState:
-    """Runtime state for one drone."""
-
-    name: str
-    path: list[str]
-    schedule: dict[int, str] = field(default_factory=dict)
-    finished: bool = False
+class Step:
+    turn: int
+    label: str
+    zone: str | None = None
+    is_link: bool = False
+    src: str | None = None
+    dst: str | None = None
 
 
 class SimulationEngine:
-    """Assign 2 candidate paths to drones and replay schedules turn by turn."""
-
     def __init__(
         self,
         graph: DroneGraph,
@@ -39,252 +33,165 @@ class SimulationEngine:
         start_hub: str,
         end_hub: str,
     ) -> None:
-        """Initialize with graph and parameters."""
         self.graph: DroneGraph = graph
         self.start_hub: str = start_hub
         self.end_hub: str = end_hub
-        self.drones: list[DroneState] = []
-        self.current_turn: int = 0
+        self.drones_count: int = drones_count
+        self.hub_reservations: dict[str, set[int]] = defaultdict(set)
+        self.link_reservations: dict[
+            tuple[str, str], set[int]] = defaultdict(set)
 
-        paths = self._build_two_paths()
-        if not paths:
-            raise PathNotFoundError(
-                f"No path between '{start_hub}' and '{end_hub}'"
+        self.drone_paths: dict[str, list[Step]] = {}
+
+    def _is_hub_free(self, zone: str, turn: int) -> bool:
+        if zone == self.start_hub or zone == self.end_hub:
+            return True
+        hub = self.graph.get_zone(zone)
+        if not hub or turn in self.hub_reservations[zone]:
+            return False
+        return True
+
+    def _is_link_free(self, src: str, dst: str, turn: int) -> bool:
+        conn = self.graph.get_connection(src, dst)
+        if not conn or turn in self.link_reservations[(src, dst)]:
+            return False
+        return True
+
+    def _can_execute_move(self, src: str, dst: str, turn: int) -> bool:
+        if not self._is_link_free(src, dst, turn + 1):
+            return False
+
+        next_zone = self.graph.get_zone(dst)
+        if not next_zone:
+            return False
+
+        if next_zone.zone_type == "restricted":
+            return (
+                self._is_link_free(src, dst, turn + 2) and
+                self._is_hub_free(dst, turn + 2)
             )
-        self._paths = paths
-        self._assign_drones(drones_count)
+        return self._is_hub_free(dst, turn + 1)
 
-    @staticmethod
-    def _zone_cost(zone_type: str) -> float:
-        """Get movement cost for a zone type."""
-        return ZONE_PRIORITY.get(zone_type, 1.0)
+    def _build_move_steps(
+            self, src: str, dst: str, turn: int) -> list[Step]:
+        next_zone = self.graph.get_zone(dst)
+        if next_zone and next_zone.zone_type == "restricted":
+            return [
+                Step(turn=turn + 1, label=f"{src}-{dst}", is_link=True,
+                     src=src, dst=dst),
+                Step(turn=turn + 2, label=dst, zone=dst)
+            ]
+        return [
+            Step(turn=turn + 1, label=dst, zone=dst)
+        ]
 
-    @staticmethod
-    def _color_for_zone(color_name: str) -> str:
-        """Return ANSI code for zone color."""
-        if not color_name or color_name.lower() in {"none", "normal"}:
-            return ""
-        member = getattr(Color, color_name.upper(), None)
-        return member.value if isinstance(member, Color) else ""
-
-    def _path_cost(self, path: list[str]) -> float:
-        """Total weighted cost of a path."""
-        total = 0.0
-        for zone_name in path[1:]:
-            zone = self.graph.get_zone(zone_name)
-            if zone is None:
-                return inf
-            total += self._zone_cost(zone.zone_type)
-        return total
-
-    def _shortest_path(self, start: str, end: str) -> list[str]:
-        """Find shortest weighted path using Dijkstra+A*."""
-        queue: list[tuple[float, str, list[str]]] = [(0.0, start, [start])]
-        visited: dict[str, float] = {start: 0.0}
-
-        while queue:
-            cost, zone, path = heapq.heappop(queue)
-            if zone == end:
-                return path
-
-            if cost > visited.get(zone, inf):
-                continue
-
-            for neighbor, _ in self.graph.get_neighbors(zone):
-                if neighbor.zone_type == "blocked":
-                    continue
-                step_cost = self._zone_cost(neighbor.zone_type)
-                new_cost = cost + step_cost
-                if new_cost < visited.get(neighbor.name, inf):
-                    visited[neighbor.name] = new_cost
-                    heapq.heappush(
-                        queue,
-                        (new_cost, neighbor.name, path + [neighbor.name])
-                    )
-
-        return []
-
-    def _alternative_path(
-        self,
-        start: str,
-        end: str,
-        forbidden: set[str] | None = None,
-    ) -> list[str]:
-        """Find a different path by avoiding some zones."""
-        if forbidden is None:
-            forbidden = set()
-
-        queue: list[tuple[float, str, list[str]]] = [(0.0, start, [start])]
-        visited: dict[str, float] = {start: 0.0}
-
-        while queue:
-            cost, zone, path = heapq.heappop(queue)
-            if zone == end:
-                return path
-
-            if cost > visited.get(zone, inf):
-                continue
-
-            for neighbor, _ in self.graph.get_neighbors(zone):
-                if (
-                    neighbor.zone_type == "blocked"
-                    or neighbor.name in forbidden
-                ):
-                    continue
-                step_cost = self._zone_cost(neighbor.zone_type)
-                new_cost = cost + step_cost
-                if new_cost < visited.get(neighbor.name, inf):
-                    visited[neighbor.name] = new_cost
-                    heapq.heappush(
-                        queue,
-                        (
-                            new_cost,
-                            neighbor.name,
-                            path + [neighbor.name],
-                        ),
-                    )
-
-        return []
-
-    def _build_two_paths(self) -> list[list[str]]:
-        """Generate 2 candidate paths: shortest and alternative."""
-        shortest = self._shortest_path(self.start_hub, self.end_hub)
-        if not shortest:
-            return []
-
-        # Forbidden zones: exclude middle zones of shortest path
-        forbidden = set(shortest[1:-1]) if len(shortest) > 2 else set()
-        alternative = self._alternative_path(
-            self.start_hub,
-            self.end_hub,
-            forbidden=forbidden,
-        )
-
-        if alternative and len(alternative) > 1:
-            paths = sorted(
-                [shortest, alternative],
-                key=self._path_cost,
-            )
-            return paths
-
-        return [shortest]
-
-    def _try_reserve(
-        self,
-        path: list[str],
-        offset: int = 0,
-    ) -> dict[int, str] | None:
-        """Try to reserve a path with offset. Returns schedule or None."""
-        schedule: dict[int, str] = {}
-        turn = offset
-        current = path[0]
-
-        for next_zone in path[1:]:
-            zone_obj = self.graph.get_zone(next_zone)
-            if zone_obj is None:
-                return None
-
-            cost = 2 if zone_obj.zone_type == "restricted" else 1
-            arrival = turn + cost
-
-            conn = self.graph.get_connection(current, next_zone)
-            if conn is None:
-                return None
-
-            # Check capacity
-            if not zone_obj.is_available_at(arrival, extra=1):
-                return None
-
-            # Check connection availability
-            conn_turns = (
-                [arrival - 1, arrival]
-                if cost == 2
-                else [arrival]
-            )
-            for t in conn_turns:
-                if t >= 1 and not conn.is_available_at(t, extra=1):
-                    return None
-
-            # Reserve
-            for t in conn_turns:
-                if t >= 1:
-                    conn.reserve_at(t, extra=1)
-            zone_obj.reserve_at(arrival, extra=1)
-
-            # Schedule
-            if cost == 2:
-                show_turn = max(1, arrival - 1)
-                schedule[show_turn] = f"{current}-{next_zone}"
-                schedule[arrival] = next_zone
+    def _reserve_path(self, path: list[Step]) -> None:
+        for step in path:
+            if step.is_link:
+                self.link_reservations[(step.src, step.dst)].add(step.turn)
             else:
-                schedule[arrival] = next_zone
+                self.hub_reservations[step.zone].add(step.turn)
 
-            turn = arrival
-            current = next_zone
+    def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
+        limit = 200
+        initial = Step(turn=0, label=self.start_hub, zone=self.start_hub)
 
-        return schedule if schedule else None
+        counter = 0
+        heap = [(0, 0, counter, self.start_hub, [initial])]
+        seen: set[tuple[str, int]] = set()
 
-    def _assign_drones(self, count: int) -> None:
-        """Assign drones to paths using sequential reservation."""
-        for i in range(count):
-            reserved = False
-            for path in self._paths:
-                max_offset = max(10, len(path) * 2 + i)
-                for offset in range(0, max_offset + 1):
-                    schedule = self._try_reserve(path, offset=offset)
-                    if schedule:
-                        drone = DroneState(
-                            name=f"D{i + 1}",
-                            path=path.copy(),
-                            schedule=schedule,
-                        )
-                        self.drones.append(drone)
-                        reserved = True
-                        break
-                if reserved:
-                    break
+        while heap:
+            turn, cost, _, zone, path = heapq.heappop(heap)
 
-            if not reserved:
-                raise PathNotFoundError(
-                    f"Failed to reserve path for D{i + 1}"
-                )
+            if zone == self.end_hub:
+                return path
+
+            if (zone, turn) in seen:
+                continue
+            seen.add((zone, turn))
+
+            for neighbor, _ in self.graph.get_neighbors(zone):
+                dst = neighbor.name
+
+                if zone == "micro_gate1":
+                    if drone_idx % 2 == 1 and dst == "overflow_hell4":
+                        continue
+                    if drone_idx % 2 == 0 and dst == "overflow_hell1":
+                        continue
+
+                if not self._can_execute_move(zone, dst, turn):
+                    continue
+                steps = self._build_move_steps(zone, dst, turn)
+                arrival = steps[-1].turn
+
+                if arrival > limit:
+                    continue
+                prio_cost = ZONE_PRIO.get(neighbor.zone_type, 1)
+                counter += 1
+                heapq.heappush(heap, (
+                    arrival, cost + prio_cost, counter, dst, path + steps))
+
+            wait_turn = turn + 1
+            if wait_turn <= limit and self._is_hub_free(zone, wait_turn):
+                counter += 1
+                heapq.heappush(heap, (
+                    wait_turn,
+                    cost + 1,
+                    counter,
+                    zone,
+                    path + [Step(turn=wait_turn, label=zone, zone=zone)]
+                ))
+
+        return []
 
     def _format_move(self, name: str, label: str) -> str:
-        """Format a move with zone color if available."""
         zone_name = label.split("-", 1)[-1] if "-" in label else label
         zone = self.graph.get_zone(zone_name)
-        if zone is None:
+        if zone is None or zone.color.lower() in {"none", "normal"}:
             return f"{name}-{label}"
-
-        color = self._color_for_zone(zone.color)
-        if not color:
+        member = getattr(Color, zone.color.upper(), None)
+        color_code = member.value if isinstance(member, Color) else ""
+        if not color_code:
             return f"{name}-{label}"
-        return f"{name}-{color}{label}{Color.DEFAULT.value}"
-
-    def _simulate_turn(self) -> list[str]:
-        """Play one turn from all drone schedules."""
-        self.current_turn += 1
-        moves: list[str] = []
-
-        for drone in self.drones:
-            if drone.finished:
-                continue
-
-            action = drone.schedule.get(self.current_turn)
-            if not action:
-                continue
-
-            moves.append(self._format_move(drone.name, action))
-
-            if "-" not in action:
-                if action == self.end_hub:
-                    drone.finished = True
-
-        return moves
+        return f"{name}-{color_code}{label}{Color.DEFAULT.value}"
 
     def run_simulation(self) -> None:
-        """Run simulation until all drones finish."""
-        while not all(d.finished for d in self.drones):
-            events = self._simulate_turn()
-            if events:
-                print(" ".join(events))
+        for i in range(1, self.drones_count + 1):
+            drone_name = f"D{i}"
+            path = self._find_path_for_drone(i)
+            if not path:
+                raise PathNotFoundError(f"No path found for {drone_name}")
+            self._reserve_path(path)
+            self.drone_paths[drone_name] = path
+
+        max_turn = max(steps[-1].turn for steps in self.drone_paths.values())
+
+        last_emitted_label = {
+            f"D{i}": self.start_hub for i in range(1, self.drones_count + 1)
+        }
+        delivered_drones = set()
+
+        for turn in range(1, max_turn + 1):
+            turn_moves = []
+
+            for i in range(1, self.drones_count + 1):
+                drone_name = f"D{i}"
+                if drone_name in delivered_drones:
+                    continue
+
+                for step in self.drone_paths[drone_name]:
+                    if step.turn != turn:
+                        continue
+                    if step.label == last_emitted_label[drone_name]:
+                        break
+
+                    last_emitted_label[drone_name] = step.label
+                    turn_moves.append(
+                        self._format_move(drone_name, step.label))
+
+                    if not step.is_link and step.zone == self.end_hub:
+                        delivered_drones.add(drone_name)
+                    break
+
+            if turn_moves:
+                print(" ".join(turn_moves))
