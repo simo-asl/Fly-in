@@ -42,11 +42,6 @@ class DroneGraph:
         """Return the zone instance for a given name if it exists."""
         return self.zones.get(zone_name)
 
-    def reset_link_capacities(self) -> None:
-        """Reset the usage of all connections for a new turn."""
-        for connection in self.connections:
-            connection.current_turn_usage = 0
-
     def get_connection(
         self,
         source: str,

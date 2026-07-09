@@ -88,8 +88,11 @@ class SimulationEngine:
     def _reserve_path(self, path: list[Step]) -> None:
         for step in path:
             if step.is_link:
+                assert step.src is not None
+                assert step.dst is not None
                 self.link_reservations[(step.src, step.dst)].add(step.turn)
             else:
+                assert step.zone is not None
                 self.hub_reservations[step.zone].add(step.turn)
 
     def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
