@@ -32,11 +32,11 @@ clean:
 
 
 lint:
-	$(PYTHON) -m flake8 . --exclude tar_fly,youss_fly
+	$(PYTHON) -m flake8 .
 	$(PYTHON) -m mypy main.py parser.py reading.py simulation.py drone_graph.py enums.py errors.py utils.py tests --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:
-	$(PYTHON) -m flake8 . --exclude tar_fly,youss_fly
+	$(PYTHON) -m flake8 .
 	$(PYTHON) -m mypy main.py parser.py reading.py simulation.py drone_graph.py enums.py errors.py utils.py tests --strict
 
 
