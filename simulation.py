@@ -116,6 +116,8 @@ class SimulationEngine:
             for neighbor, _ in self.graph.get_neighbors(zone):
                 dst = neighbor.name
 
+                if dst in [s.zone for s in path if not s.is_link]:
+                    continue
                 if zone == "micro_gate1":
                     if drone_idx % 2 == 1 and dst == "overflow_hell4":
                         continue
