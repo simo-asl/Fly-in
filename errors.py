@@ -83,15 +83,6 @@ class Errors:
         raise InvalidStructureError(error_message)
 
     @classmethod
-    def fail_route_not_found(cls, start_hub: str, end_hub: str) -> None:
-        """Fails path processing operations when network matrices disconnect"""
-        error_message = (
-            f"No path found between start hub '{start_hub}' "
-            f"and end hub '{end_hub}'"
-        )
-        raise PathNotFoundError(error_message)
-
-    @classmethod
     def trigger_absent_required_statement(cls, line_type: LineType) -> None:
         """Ensures fundamental configuration prerequisites exist."""
         match line_type.value:
@@ -104,26 +95,6 @@ class Errors:
             case _:
                 error_message = "Error in config file"
         raise DeclarationError(error_message)
-
-    @classmethod
-    def emit_omitted_map_file(cls) -> None:
-        """Fails operations when file tracking indicators are missing."""
-        raise InvalidArgumentError("Missing map file argument")
-
-    @classmethod
-    def emit_redundant_arguments(cls) -> None:
-        """Enforces limits on parameters passed during standard invocation."""
-        raise InvalidArgumentError("Too many arguments provided")
-
-    @classmethod
-    def emit_blocked_file_access(cls, file_path: str) -> None:
-        """Intercepts system descriptor anomalies during infrastructure load"""
-        raise InvalidArgumentError(f"Cannot open file: '{file_path}'")
-
-    @classmethod
-    def emit_missing_file_path(cls, file_path: str) -> None:
-        """Intercepts missing asset exceptions during storage retrieval."""
-        raise InvalidArgumentError(f"File not found: '{file_path}'")
 
     @classmethod
     def report_drones_clash_definition(
