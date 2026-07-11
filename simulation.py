@@ -26,6 +26,7 @@ class Step:
 
 
 class SimulationEngine:
+    """Mananges the whole drone simulation"""
     def __init__(
         self,
         graph: DroneGraph,
@@ -33,6 +34,7 @@ class SimulationEngine:
         start_hub: str,
         end_hub: str,
     ) -> None:
+        """Store graph and simulation config"""
         self.graph: DroneGraph = graph
         self.start_hub: str = start_hub
         self.end_hub: str = end_hub
@@ -44,6 +46,7 @@ class SimulationEngine:
         self.drone_paths: dict[str, list[Step]] = {}
 
     def _is_hub_free(self, zone: str, turn: int) -> bool:
+        """Checking if the hub is free or not"""
         if zone == self.start_hub or zone == self.end_hub:
             return True
         hub = self.graph.get_zone(zone)
@@ -52,12 +55,14 @@ class SimulationEngine:
         return True
 
     def _is_link_free(self, src: str, dst: str, turn: int) -> bool:
+        """Check if a connection between two hubs is availabe"""
         conn = self.graph.get_connection(src, dst)
         if not conn or turn in self.link_reservations[(src, dst)]:
             return False
         return True
 
     def _can_execute_move(self, src: str, dst: str, turn: int) -> bool:
+        """Deciding if a drone can move or not"""
         if not self._is_link_free(src, dst, turn + 1):
             return False
 
@@ -74,6 +79,7 @@ class SimulationEngine:
 
     def _build_move_steps(
             self, src: str, dst: str, turn: int) -> list[Step]:
+        """Create the sequence of steps"""
         next_zone = self.graph.get_zone(dst)
         if next_zone and next_zone.zone_type == "restricted":
             return [
@@ -86,6 +92,7 @@ class SimulationEngine:
         ]
 
     def _reserve_path(self, path: list[Step]) -> None:
+        """Reserve sevral hubs and link it by a path"""
         for step in path:
             if step.is_link:
                 assert step.src is not None
@@ -96,6 +103,7 @@ class SimulationEngine:
                 self.hub_reservations[step.zone].add(step.turn)
 
     def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
+        """Search for a valid path for one drone"""
         limit = 200
         initial = Step(turn=0, label=self.start_hub, zone=self.start_hub)
 
@@ -150,6 +158,7 @@ class SimulationEngine:
         return []
 
     def _format_move(self, name: str, label: str) -> str:
+        """Convert a movment into printable output"""
         zone_name = label.split("-", 1)[-1] if "-" in label else label
         zone = self.graph.get_zone(zone_name)
         if zone is None or zone.color.lower() in {"none", "normal"}:
@@ -161,6 +170,7 @@ class SimulationEngine:
         return f"{name}-{color_code}{label}{Color.DEFAULT.value}"
 
     def run_simulation(self) -> None:
+        """Replay the simulation turn by turn"""
         for i in range(1, self.drones_count + 1):
             drone_name = f"D{i}"
             path = self._find_path_for_drone(i)
