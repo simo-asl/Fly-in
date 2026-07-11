@@ -1,42 +1,43 @@
 from parser import Connection, Zone
+from utils import normalize_pair
 
 
 class DroneGraph:
     def __init__(
-            self, zones: list[Zone], connections: list[Connection]) -> None:
-        """Initialize the DroneGraph with zones and connections."""
+        self,
+        zones: list[Zone],
+        connections: list[Connection],
+    ) -> None:
+        """Initialize the graph with its zones and connections."""
         self.zones: dict[str, Zone] = {zone.name: zone for zone in zones}
         self.connections: list[Connection] = connections
+
         self._connections_by_pair: dict[tuple[str, str], Connection] = {}
+        self._neighbors: dict[str, list[tuple[Zone, Connection]]] = {}
+
         for connection in connections:
-            if connection.source < connection.destination:
-                key = (connection.source, connection.destination)
-            else:
-                key = (connection.destination, connection.source)
+            key = normalize_pair(
+                connection.source,
+                connection.destination,
+            )
             self._connections_by_pair[key] = connection
 
+            source_zone = self.zones[connection.source]
+            destination_zone = self.zones[connection.destination]
+
+            if destination_zone.zone_type != "blocked":
+                self._neighbors.setdefault(connection.source, []).append(
+                    (destination_zone, connection)
+                )
+
+            if source_zone.zone_type != "blocked":
+                self._neighbors.setdefault(connection.destination, []).append(
+                    (source_zone, connection)
+                )
+
     def get_neighbors(self, zone_name: str) -> list[tuple[Zone, Connection]]:
-        """Get the names of neighboring zones for a given zone."""
-        neighbors: list[tuple[Zone, Connection]] = []
-        zone = self.zones.get(zone_name)
-        if zone is None:
-            return neighbors
-
-        for connection in self.connections:
-            neighbor_name = None
-            if connection.source == zone_name:
-                neighbor_name = connection.destination
-            elif connection.destination == zone_name:
-                neighbor_name = connection.source
-            if neighbor_name:
-                neighbor_zone = self.zones.get(neighbor_name)
-                if (
-                    neighbor_zone is not None
-                    and neighbor_zone.zone_type != "blocked"
-                ):
-                    neighbors.append((neighbor_zone, connection))
-
-        return neighbors
+        """Return all reachable neighbors of the given zone."""
+        return self._neighbors.get(zone_name, [])
 
     def get_zone(self, zone_name: str) -> Zone | None:
         """Return the zone instance for a given name if it exists."""
@@ -47,9 +48,6 @@ class DroneGraph:
         source: str,
         destination: str,
     ) -> Connection | None:
-        """Return the connection between two zones if it exists."""
-        if source < destination:
-            key = (source, destination)
-        else:
-            key = (destination, source)
+        """Return the connection linking two zones, if it exists."""
+        key = normalize_pair(source, destination)
         return self._connections_by_pair.get(key)
