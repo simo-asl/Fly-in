@@ -1,6 +1,5 @@
 from __future__ import annotations
 import heapq
-from collections import defaultdict
 from dataclasses import dataclass
 
 from drone_graph import DroneGraph
@@ -39,27 +38,22 @@ class SimulationEngine:
         self.start_hub: str = start_hub
         self.end_hub: str = end_hub
         self.drones_count: int = drones_count
-        self.hub_reservations: dict[str, set[int]] = defaultdict(set)
-        self.link_reservations: dict[
-            tuple[str, str], set[int]] = defaultdict(set)
 
         self.drone_paths: dict[str, list[Step]] = {}
 
     def _is_hub_free(self, zone: str, turn: int) -> bool:
         """Checking if the hub is free or not"""
-        if zone == self.start_hub or zone == self.end_hub:
-            return True
         hub = self.graph.get_zone(zone)
-        if not hub or turn in self.hub_reservations[zone]:
+        if hub is None:
             return False
-        return True
+        return hub.is_available_at(turn)
 
     def _is_link_free(self, src: str, dst: str, turn: int) -> bool:
         """Check if a connection between two hubs is availabe"""
         conn = self.graph.get_connection(src, dst)
-        if not conn or turn in self.link_reservations[(src, dst)]:
+        if conn is None:
             return False
-        return True
+        return conn.is_available_at(turn)
 
     def _can_execute_move(self, src: str, dst: str, turn: int) -> bool:
         """Deciding if a drone can move or not"""
@@ -92,15 +86,22 @@ class SimulationEngine:
         ]
 
     def _reserve_path(self, path: list[Step]) -> None:
-        """Reserve sevral hubs and link it by a path"""
+        """Reserve all hubs and links used by a drone path."""
         for step in path:
             if step.is_link:
                 assert step.src is not None
                 assert step.dst is not None
-                self.link_reservations[(step.src, step.dst)].add(step.turn)
+
+                connection = self.graph.get_connection(step.src, step.dst)
+                assert connection is not None
+                connection.reserve_at(step.turn)
+
             else:
                 assert step.zone is not None
-                self.hub_reservations[step.zone].add(step.turn)
+
+                hub = self.graph.get_zone(step.zone)
+                assert hub is not None
+                hub.reserve_at(step.turn)
 
     def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
         """Search for a valid path for one drone"""
