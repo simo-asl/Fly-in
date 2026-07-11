@@ -23,3 +23,8 @@ class Color(str, Enum):
     CRIMSON = "\033[38;5;197m"
     LIME = "\033[38;5;118m"
     DARKBROWN = "\033[38;5;94m"
+
+
+def normalize_pair(a: str, b: str) -> tuple[str, str]:
+    """Return a canonical key for an undirected connection"""
+    return (a, b) if a < b else (b, a)
