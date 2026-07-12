@@ -124,10 +124,14 @@ class Parser:
     ) -> tuple[str, dict[str, str]]:
         """Split main payload and metadata block then parse key/value pairs."""
         open_index = payload.find("[")
+        hashtag_index = payload.find("#")
         close_index = payload.find("]")
-
+        payload = payload[:hashtag_index] if hashtag_index != -1 else payload
         if open_index == -1 and close_index == -1:
             return payload.strip(), {}
+
+        if open_index < hashtag_index < close_index:
+            MetadataErrors.trigger_bad_metadata_syntax(raw_line, line_number)
 
         if open_index == -1 or close_index == -1:
             MetadataErrors.trigger_bad_metadata_syntax(raw_line, line_number)
@@ -135,23 +139,11 @@ class Parser:
         if close_index < open_index:
             MetadataErrors.trigger_bad_metadata_syntax(raw_line, line_number)
 
-        trailing = payload[close_index + 1:].strip()
-        index = raw_line.find("#")
-
-        if index != -1:
-            trailing = raw_line[index + 1:].strip()
-
-        if trailing:
-            MetadataErrors.trigger_bad_metadata_syntax(raw_line, line_number)
-
         base = payload[:open_index].strip()
         raw_metadata = payload[open_index + 1:close_index].strip()
 
         if not raw_metadata:
             return base, {}
-
-        if "#" in raw_metadata:
-            MetadataErrors.trigger_bad_metadata_syntax(raw_line, line_number)
 
         metadata: dict[str, str] = {}
         for token in raw_metadata.split():

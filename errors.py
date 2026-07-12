@@ -61,12 +61,6 @@ class UnknownValueError(ParsingError):
     pass
 
 
-class InvalidArgumentError(Exception):
-    """Raised when command-line interface runtime arguments fail checks."""
-
-    pass
-
-
 class PathNotFoundError(Exception):
     """Raised when no logical routing transitions exist to destination."""
 
