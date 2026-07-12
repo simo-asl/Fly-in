@@ -1,11 +1,8 @@
 """Command-line entrypoint for the Fly-in drone simulation."""
-
-from __future__ import annotations
-
 import sys
 
 from drone_graph import DroneGraph
-from errors import InvalidArgumentError, PathNotFoundError, ParsingError
+from errors import PathNotFoundError, ParsingError
 from parser import Parser
 from simulation import SimulationEngine
 
@@ -43,7 +40,7 @@ def main() -> int:
     except PermissionError:
         print(f"Error: cannot open file: {map_file}")
         return 2
-    except (ParsingError, PathNotFoundError, InvalidArgumentError) as error:
+    except (ParsingError, PathNotFoundError) as error:
         print(f"Error: {error}")
         return 3
     except Exception as error:
