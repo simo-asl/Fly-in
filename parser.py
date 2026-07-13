@@ -365,7 +365,6 @@ class Parser:
 
         max_drones = 1
 
-        # The subject says start/end capacity metadata is ignored.
         if (
             declaration_type == ZoneType.HUB
             and "max_drones" in metadata

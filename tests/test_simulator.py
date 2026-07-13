@@ -9,6 +9,7 @@ from drone_graph import DroneGraph
 from errors import PathNotFoundError
 from parser import Connection, Zone
 from simulation import SimulationEngine
+from enums import ZoneType
 
 
 class SimulatorTests(unittest.TestCase):
@@ -108,8 +109,18 @@ class SimulatorTests(unittest.TestCase):
         """Limit normal-link traversal to its capacity."""
         lines = self._run(
             zones=[
-                Zone("start", 0, 0),
-                Zone("goal", 1, 0),
+                Zone(
+                    "start",
+                    0,
+                    0,
+                    declaration_type=ZoneType.START_HUB,
+                ),
+                Zone(
+                    "goal",
+                    1,
+                    0,
+                    declaration_type=ZoneType.END_HUB,
+                ),
             ],
             connections=[
                 Connection(
@@ -121,15 +132,9 @@ class SimulatorTests(unittest.TestCase):
             drones=2,
         )
 
-        goal_turns = [
-            line
-            for line in lines
-            if "-goal" in line
-        ]
+        self.assertEqual(len(lines), 2)
 
-        self.assertEqual(len(goal_turns), 2)
-
-        for line in goal_turns:
+        for line in lines:
             arrivals = [
                 movement
                 for movement in line.split()
@@ -143,8 +148,18 @@ class SimulatorTests(unittest.TestCase):
         """Allow simultaneous traversal when link capacity is two."""
         lines = self._run(
             zones=[
-                Zone("start", 0, 0),
-                Zone("goal", 1, 0),
+                Zone(
+                    "start",
+                    0,
+                    0,
+                    declaration_type=ZoneType.START_HUB,
+                ),
+                Zone(
+                    "goal",
+                    1,
+                    0,
+                    declaration_type=ZoneType.END_HUB,
+                ),
             ],
             connections=[
                 Connection(

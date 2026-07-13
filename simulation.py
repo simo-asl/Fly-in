@@ -72,36 +72,69 @@ class SimulationEngine:
         return self._is_hub_free(dst, turn + 1)
 
     def _build_move_steps(
-            self, src: str, dst: str, turn: int) -> list[Step]:
-        """Create the sequence of steps"""
+        self,
+        src: str,
+        dst: str,
+        turn: int,
+    ) -> list[Step]:
+        """Create the steps required for a movement."""
         next_zone = self.graph.get_zone(dst)
-        if next_zone and next_zone.zone_type == "restricted":
+
+        if next_zone is None:
+            return []
+
+        if next_zone.zone_type == "restricted":
             return [
-                Step(turn=turn + 1, label=f"{src}-{dst}", is_link=True,
-                     src=src, dst=dst),
-                Step(turn=turn + 2, label=dst, zone=dst)
+                Step(
+                    turn=turn + 1,
+                    label=f"{src}-{dst}",
+                    is_link=True,
+                    src=src,
+                    dst=dst,
+                ),
+                Step(
+                    turn=turn + 2,
+                    label=dst,
+                    zone=dst,
+                ),
             ]
+
         return [
-            Step(turn=turn + 1, label=dst, zone=dst)
+            Step(
+                turn=turn + 1,
+                label=dst,
+                zone=dst,
+                src=src,
+                dst=dst,
+            )
         ]
 
     def _reserve_path(self, path: list[Step]) -> None:
-        """Reserve all hubs and links used by a drone path."""
+        """Reserve all zones and connections used by a path."""
         for step in path:
-            if step.is_link:
-                assert step.src is not None
-                assert step.dst is not None
+            if step.src is not None and step.dst is not None:
+                connection = self.graph.get_connection(
+                    step.src,
+                    step.dst,
+                )
 
-                connection = self.graph.get_connection(step.src, step.dst)
-                assert connection is not None
+                if connection is None:
+                    raise PathNotFoundError(
+                        f"Missing connection: "
+                        f"{step.src}-{step.dst}"
+                    )
+
                 connection.reserve_at(step.turn)
 
-            else:
-                assert step.zone is not None
+            if step.zone is not None:
+                zone = self.graph.get_zone(step.zone)
 
-                hub = self.graph.get_zone(step.zone)
-                assert hub is not None
-                hub.reserve_at(step.turn)
+                if zone is None:
+                    raise PathNotFoundError(
+                        f"Unknown zone: {step.zone}"
+                    )
+
+                zone.reserve_at(step.turn)
 
     def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
         """Search for a valid path for one drone"""
