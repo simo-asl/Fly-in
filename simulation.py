@@ -127,11 +127,6 @@ class SimulationEngine:
 
                 if dst in [s.zone for s in path if not s.is_link]:
                     continue
-                if zone == "micro_gate1":
-                    if drone_idx % 2 == 1 and dst == "overflow_hell4":
-                        continue
-                    if drone_idx % 2 == 0 and dst == "overflow_hell1":
-                        continue
 
                 if not self._can_execute_move(zone, dst, turn):
                     continue

@@ -1,29 +1,28 @@
-from io import TextIOWrapper
+"""Read meaningful lines from Fly-in map files."""
+
+from typing import TextIO
 
 
 class FileReader:
-    """A class for reading lines from a file, skip empty lines and comments."""
-    def __init__(self, file_path: str) -> None:
-        """Initialize the FileReader with the given file path."""
-        self.file_path: str = file_path
-        self.line_number: int = 0
-        self.file: TextIOWrapper
-        self.__open()
+    """Read map lines while skipping comments and empty lines."""
 
-    def __open(self) -> None:
-        """Open the file for reading."""
-        self.file = open(self.file_path, "r")
+    def __init__(self, file_path: str) -> None:
+        """Open a map file for reading."""
+        self.file_path = file_path
+        self.line_number = 0
+        self.file: TextIO = open(file_path, "r")
 
     def close(self) -> None:
-        """Close the underlying file handle if it is open."""
+        """Close the map file."""
         if not self.file.closed:
             self.file.close()
 
     def read_line(self) -> str | None:
-        """Read a line from the file and return it."""
+        """Return the next meaningful line or None at end of file."""
         while True:
-            line: str | None = self.file.readline()
-            if not line:
+            line = self.file.readline()
+
+            if line == "":
                 return None
 
             self.line_number += 1
