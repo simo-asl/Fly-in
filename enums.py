@@ -13,15 +13,6 @@ class LineType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ZoneKeyType(Enum):
-    """Enum for different types of zone keys."""
-
-    NORMAL = auto()
-    RESTRICTED = auto()
-    BLOCKED = auto()
-    PRIORITY = auto()
-
-
 class ZoneType(str, Enum):
     """Zone categories for different types of zones."""
 
