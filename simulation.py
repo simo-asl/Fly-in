@@ -138,7 +138,6 @@ class SimulationEngine:
 
     def _find_path_for_drone(self, drone_idx: int) -> list[Step]:
         """Search for a valid path for one drone"""
-        limit = 200
         initial = Step(turn=0, label=self.start_hub, zone=self.start_hub)
 
         counter = 0
@@ -166,15 +165,13 @@ class SimulationEngine:
                 steps = self._build_move_steps(zone, dst, turn)
                 arrival = steps[-1].turn
 
-                if arrival > limit:
-                    continue
                 prio_cost = ZONE_PRIO.get(neighbor.zone_type, 1)
                 counter += 1
                 heapq.heappush(heap, (
                     arrival, cost + prio_cost, counter, dst, path + steps))
 
             wait_turn = turn + 1
-            if wait_turn <= limit and self._is_hub_free(zone, wait_turn):
+            if  self._is_hub_free(zone, wait_turn):
                 counter += 1
                 heapq.heappush(heap, (
                     wait_turn,
