@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import heapq
 from collections import Counter
 from dataclasses import dataclass, field
@@ -446,4 +444,3 @@ class SimulationEngine:
                 )
 
             print(" ".join(turn_moves))
-

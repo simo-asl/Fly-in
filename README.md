@@ -1,79 +1,219 @@
-*This project has been created as part of the 42 curriculum by mel-asla.*
+*This project has been created as part of the 42 curriculum by
+simo-asl.*
 
 # Fly-in
 
 ## Description
 
-Fly-in is a Python 3.10+ drone routing simulator. It parses a zone graph, validates the map format, builds a weighted route network, and simulates multiple drones moving from a unique start hub to a unique end hub while respecting zone capacity and connection capacity constraints.
+Fly-in is a Python 3.10+ drone routing simulator that moves multiple
+drones through a network of connected zones while minimizing the total
+number of simulation turns.
 
-The current implementation focuses on:
-- strict input parsing and error reporting
-- weighted pathfinding with support for normal, priority, and restricted zones
-- turn-based simulation with simultaneous drone movement
-- capacity-aware scheduling across multiple candidate paths
+The objective is to design an efficient routing system that guides
+drones from a unique start hub to a unique end hub while respecting
+movement constraints, zone capacities, and connection limits.
+
+The project focuses on:
+
+-   Graph algorithms and pathfinding
+-   Object-oriented programming
+-   Input parsing and validation
+-   Turn-based simulation
+-   Algorithm optimization
+
+## Features
+
+### Map Parser
+
+The parser reads and validates map files containing:
+
+-   Number of drones
+-   Start and end zones
+-   Zones and their metadata
+-   Connections between zones
+-   Zone capacities
+-   Connection capacities
+
+Supported zone types:
+
+-   normal: standard movement cost
+-   restricted: requires additional movement time
+-   priority: preferred during route selection
+-   blocked: inaccessible zone
+
+### Routing System
+
+The routing system handles:
+
+-   Multiple candidate paths
+-   Weighted path selection
+-   Drone distribution
+-   Capacity-aware scheduling
+-   Simultaneous movements
+
+### Simulation Engine
+
+The simulation works turn by turn and ensures:
+
+-   Valid drone movements
+-   Zone occupancy rules
+-   Connection capacity limits
+-   Restricted zone movement rules
+-   Correct delivery tracking
+
+## Architecture
+
+The project is divided into several components:
+
+### Parser
+
+Responsible for:
+
+-   Reading input files
+-   Validating syntax
+-   Extracting zone and connection data
+-   Handling parsing errors
+
+### Drone Graph
+
+Responsible for:
+
+-   Representing the map as a graph
+-   Managing zones and connections
+-   Storing routing information
+
+### Simulation Engine
+
+Responsible for:
+
+-   Managing drone states
+-   Scheduling movements
+-   Applying constraints
+-   Producing simulation output
+
+## Algorithm Choices
+
+The solution uses graph-based pathfinding to find efficient routes
+between the start and end zones.
+
+The algorithm process:
+
+1.  Parse the map and build an internal graph.
+2.  Evaluate possible paths while avoiding blocked zones.
+3.  Consider movement costs and capacity constraints.
+4.  Assign drones to suitable paths.
+5.  Simulate movements turn by turn.
+
+The implementation avoids external graph libraries and manages the graph
+logic internally.
+
+## Visual Representation
+
+The simulation provides terminal output showing drone movements for each
+turn.
+
+Example:
+
+``` text
+D1-roof1 D2-corridorA
+D1-roof2 D2-tunnelB
+D1-goal D2-goal
+```
+
+This allows users to follow the progress of every drone during the
+simulation.
 
 ## Instructions
 
-### Install
+### Requirements
 
-No third-party dependencies are required for the mandatory part.
+-   Python 3.10 or later
+-   flake8
+-   mypy
 
 ### Run
 
-Use the main entry point with a map file:
-
-- python3 main.py maps/easy/01_linear_path.txt
+``` bash
+python3 main.py maps/easy/01_linear_path.txt
+```
 
 ### Debug
 
-Run the program with the Python debugger:
-
-- python3 -m pdb main.py maps/easy/01_linear_path.txt
+``` bash
+python3 -m pdb main.py maps/easy/01_linear_path.txt
+```
 
 ### Lint
 
-The project is checked with:
+``` bash
+flake8 .
 
-- flake8 .
-- mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+```
 
-## Algorithm choices
+## Example
 
-The solver uses three main steps:
+Input:
 
-1. Parse and validate the map file.
-2. Build an undirected graph of zones and connections.
-3. Compute several candidate paths, then assign drones to the best paths by balancing path cost and path capacity.
+``` text
+nb_drones: 2
 
-During simulation, each turn:
-- drones already in restricted transit arrive first
-- drones closer to the end move before drones farther back
-- zone capacity and connection capacity are checked before every move
-- restricted-zone movement is split across two turns
+start_hub: hub 0 0
+end_hub: goal 10 10
 
-This approach is intentionally simple, deterministic, and type-safe. It is not a full multi-agent optimizer, but it is stable on the provided maps and produces valid turn-by-turn output.
+hub: roof1 3 4
+hub: roof2 6 2
 
-## Visual representation
+connection: hub-roof1
+connection: roof1-roof2
+connection: roof2-goal
+```
 
-The current terminal output shows every turn as a space-separated list of drone movements. This gives a compact step-by-step view of the simulation and makes it easy to follow drone progress through the network.
+Output:
 
-A future graphical view or colorized terminal rendering could be added on top of the same simulation core without changing the routing logic.
+``` text
+D1-roof1 D2-roof1
+D1-roof2 D2-roof2
+D1-goal D2-goal
+```
+
+## Testing
+
+The project includes tests for:
+
+-   Parser validation
+-   Graph behavior
+-   Simulation rules
+
+Tests are used to verify edge cases and ensure the simulator respects
+all constraints.
 
 ## Resources
 
-- Python documentation: https://docs.python.org/3/
-- `dataclasses`: https://docs.python.org/3/library/dataclasses.html
-- `heapq`: https://docs.python.org/3/library/heapq.html
-- Flake8: https://flake8.pycqa.org/
-- mypy: https://mypy.readthedocs.io/
-- Dijkstra’s algorithm overview: https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm
+-   Python Documentation: https://docs.python.org/3/
 
-### AI usage
+-   Dataclasses: https://docs.python.org/3/library/dataclasses.html
 
-AI was used to:
-- review the project structure
-- identify missing pieces in the parser, graph helper, and simulation engine
-- help design the turn-based scheduling strategy
-- help clean up type hints, lint issues, and CLI wiring
+-   Heap Queue: https://docs.python.org/3/library/heapq.html
 
-The implemented code was reviewed and adjusted manually to match the project rules and the provided maps.
+-   Dijkstra Algorithm:
+    https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm
+
+## AI Usage
+
+AI tools were used to assist with:
+
+-   Reviewing project structure
+-   Improving documentation
+-   Identifying possible edge cases
+-   Reviewing code organization
+-   Helping with README improvements
+
+All AI-generated suggestions were reviewed, tested, and adapted manually
+to ensure correctness.
+
+## Conclusion
+
+Fly-in combines graph algorithms, simulation design, and software
+engineering practices to create an efficient drone routing system
+capable of handling complex movement constraints.

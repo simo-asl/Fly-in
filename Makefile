@@ -40,4 +40,4 @@ lint-strict:
 	$(PYTHON) -m mypy main.py parser.py reading.py simulation.py drone_graph.py enums.py errors.py utils.py tests --strict
 
 
-.PHONY: install run debug clean lint lint-strict help lint-deps
+.PHONY: install run debug clean lint lint-strict help
