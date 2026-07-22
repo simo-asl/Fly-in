@@ -1,8 +1,8 @@
 """Parse and validate Fly-in map files."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from enums import LineType, ZoneType
+from enums import LineType
 from errors import (
     DuplicatedConnection,
     Errors,
@@ -23,53 +23,19 @@ CONNECTION_KEYS = {"max_link_capacity"}
 
 @dataclass
 class Zone:
-    """Represent a zone in the drone network."""
-
     name: str
     x: int
     y: int
     zone_type: str = "normal"
     color: str = "none"
-    max_drones: int = 1
-    declaration_type: ZoneType = ZoneType.HUB
-    reservations: dict[int, int] = field(default_factory=dict)
-
-    def is_available_at(self, turn: int, extra: int = 1) -> bool:
-        """Return whether the zone has capacity at a turn."""
-        if self.declaration_type in {
-            ZoneType.START_HUB,
-            ZoneType.END_HUB,
-        }:
-            return True
-
-        return self.reservations.get(turn, 0) + extra <= self.max_drones
-
-    def reserve_at(self, turn: int, extra: int = 1) -> None:
-        """Reserve zone capacity at a turn."""
-        self.reservations[turn] = self.reservations.get(turn, 0) + extra
+    max_drones: int | None = None
 
 
 @dataclass
 class Connection:
-    """Represent a bidirectional connection."""
-
     source: str
     destination: str
     max_link_capacity: int = 1
-    reservations: dict[int, int] = field(default_factory=dict)
-
-    def is_available_at(self, turn: int, extra: int = 1) -> bool:
-        """Return whether the connection has capacity at a turn."""
-        return (
-            self.reservations.get(turn, 0) + extra
-            <= self.max_link_capacity
-        )
-
-    def reserve_at(self, turn: int, extra: int = 1) -> None:
-        """Reserve connection capacity at a turn."""
-        self.reservations[turn] = (
-            self.reservations.get(turn, 0) + extra
-        )
 
 
 class Parser:
@@ -77,7 +43,6 @@ class Parser:
 
     def __init__(self, file_name: str) -> None:
         """Initialize the parser."""
-        self.file_name = file_name
         self.file_reader = FileReader(file_name)
 
         self.nb_drones = 0
@@ -85,11 +50,9 @@ class Parser:
         self.end_hub = ""
 
         self.hubs: dict[str, Zone] = {}
-        self.connections: dict[str, list[str]] = {}
 
         self.zone_declarations: list[Zone] = []
         self.connection_declarations: list[Connection] = []
-        self.connection_capacities: dict[tuple[str, str], int] = {}
 
         self._connection_pairs: set[tuple[str, str]] = set()
         self._zone_lines: dict[str, tuple[str, int]] = {}
@@ -356,25 +319,18 @@ class Parser:
                 line_number,
             )
 
-        declaration_type = ZoneType.HUB
+        max_drones = None
 
-        if line_type == LineType.START_HUB:
-            declaration_type = ZoneType.START_HUB
-        elif line_type == LineType.END_HUB:
-            declaration_type = ZoneType.END_HUB
+        if line_type == LineType.HUB:
+            max_drones = 1
 
-        max_drones = 1
-
-        if (
-            declaration_type == ZoneType.HUB
-            and "max_drones" in metadata
-        ):
-            max_drones = self._positive_integer(
-                metadata["max_drones"],
-                "max_drones",
-                raw_line,
-                line_number,
-            )
+            if "max_drones" in metadata:
+                max_drones = self._positive_integer(
+                    metadata["max_drones"],
+                    "max_drones",
+                    raw_line,
+                    line_number,
+                )
 
         zone = Zone(
             name=name,
@@ -383,7 +339,6 @@ class Parser:
             zone_type=zone_type,
             color=metadata.get("color", "none"),
             max_drones=max_drones,
-            declaration_type=declaration_type,
         )
 
         self.hubs[name] = zone
@@ -483,14 +438,14 @@ class Parser:
                 line_number,
             )
 
+        self._connection_pairs.add(pair)
+
         connection = Connection(
-            source=source,
-            destination=destination,
+            source,
+            destination,
             max_link_capacity=capacity,
         )
 
-        self._connection_pairs.add(pair)
-        self.connection_capacities[pair] = capacity
         self.connection_declarations.append(connection)
 
     def _validate_required_fields(self) -> None:
@@ -501,18 +456,6 @@ class Parser:
             Errors.missing(LineType.START_HUB)
         if self._end_line is None:
             Errors.missing(LineType.END_HUB)
-
-    def _build_connections(self) -> None:
-        """Build the compatibility adjacency dictionary."""
-        self.connections = {name: [] for name in self.hubs}
-
-        for connection in self.connection_declarations:
-            self.connections[connection.source].append(
-                connection.destination
-            )
-            self.connections[connection.destination].append(
-                connection.source
-            )
 
     def parse(self) -> None:
         """Parse the complete map file."""
@@ -579,6 +522,5 @@ class Parser:
                     )
 
             self._validate_required_fields()
-            self._build_connections()
         finally:
             self.file_reader.close()

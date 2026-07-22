@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class Color(str, Enum):
-    """"ANSII color codes for terminal output"""
+    """ANSII color codes for terminal output"""
 
     DEFAULT = "\033[0m"
     BLACK = "\033[30m"
@@ -22,7 +22,6 @@ class Color(str, Enum):
     VIOLET = "\033[38;5;99m"
     CRIMSON = "\033[38;5;197m"
     LIME = "\033[38;5;118m"
-    DARKBROWN = "\033[38;5;94m"
 
 
 def normalize_pair(a: str, b: str) -> tuple[str, str]:

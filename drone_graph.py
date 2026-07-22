@@ -1,57 +1,97 @@
-"""Graph representation for the Fly-in network."""
-
-from parser import Connection, Zone
+from parser import Zone, Connection
 from utils import normalize_pair
 
 
 class DroneGraph:
-    """Represent zones and their bidirectional connections."""
+    """Represent the drone network as a graph."""
 
     def __init__(
         self,
         zones: list[Zone],
         connections: list[Connection],
     ) -> None:
-        """Build graph lookup tables from parsed declarations."""
-        self.zones = {zone.name: zone for zone in zones}
-        self.connections = connections
-
-        self._connections_by_pair = {
-            normalize_pair(connection.source, connection.destination):
-            connection
-            for connection in connections
+        """Initialize graph structures."""
+        self.zones: dict[str, Zone] = {
+            zone.name: zone
+            for zone in zones
         }
 
         self._neighbors: dict[
             str,
-            list[tuple[Zone, Connection]],
-        ] = {
-            zone.name: []
-            for zone in zones
-        }
+            list[tuple[str, Connection]],
+        ] = {}
 
+        self._connections_by_pair: dict[
+            tuple[str, str],
+            Connection,
+        ] = {}
+
+        self._build_graph(connections)
+
+    def _build_graph(
+        self,
+        connections: list[Connection],
+    ) -> None:
+        """Build adjacency and connection lookup tables."""
         for connection in connections:
-            source = self.zones[connection.source]
-            destination = self.zones[connection.destination]
+            pair = normalize_pair(
+                connection.source,
+                connection.destination,
+            )
 
-            if destination.zone_type != "blocked":
-                self._neighbors[source.name].append(
-                    (destination, connection)
-                )
+            self._connections_by_pair[pair] = connection
 
-            if source.zone_type != "blocked":
-                self._neighbors[destination.name].append(
-                    (source, connection)
-                )
+            self._add_neighbor(
+                connection.source,
+                connection.destination,
+                connection,
+            )
+
+            self._add_neighbor(
+                connection.destination,
+                connection.source,
+                connection,
+            )
+
+    def _add_neighbor(
+        self,
+        source: str,
+        destination: str,
+        connection: Connection,
+    ) -> None:
+        """Add a valid neighbor to the graph."""
+        zone = self.zones.get(destination)
+
+        if zone is None:
+            return
+
+        if zone.zone_type == "blocked":
+            return
+
+        if source not in self._neighbors:
+            self._neighbors[source] = []
+
+        self._neighbors[source].append(
+            (
+                destination,
+                connection,
+            )
+        )
 
     def get_neighbors(
         self,
         zone_name: str,
-    ) -> list[tuple[Zone, Connection]]:
+    ) -> list[tuple[str, Connection]]:
         """Return reachable neighbors of a zone."""
-        return self._neighbors.get(zone_name, [])
+        return self._neighbors.get(
+            zone_name,
+            [],
+        )
 
-    def get_zone(self, zone_name: str) -> Zone | None:
+    def get_zone(
+        self,
+        zone_name: str,
+    ) -> Zone | None:
         """Return a zone by name."""
         return self.zones.get(zone_name)
 
@@ -60,7 +100,10 @@ class DroneGraph:
         source: str,
         destination: str,
     ) -> Connection | None:
-        """Return the connection between two zones."""
-        return self._connections_by_pair.get(
-            normalize_pair(source, destination)
+        """Return connection between two zones."""
+        pair = normalize_pair(
+            source,
+            destination,
         )
+
+        return self._connections_by_pair.get(pair)

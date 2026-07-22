@@ -92,11 +92,13 @@ class ParserTests(unittest.TestCase):
             )
         )
 
-        self.assertTrue(
-            parser.hubs["start"].is_available_at(1, 100)
+        # Start and end hubs should not keep capacity limits.
+        self.assertIsNone(
+            parser.hubs["start"].max_drones
         )
-        self.assertTrue(
-            parser.hubs["goal"].is_available_at(1, 100)
+
+        self.assertIsNone(
+            parser.hubs["goal"].max_drones
         )
 
     def test_reversed_duplicate_connection_is_rejected(

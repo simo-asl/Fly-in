@@ -16,16 +16,17 @@ ZONE_PRIO: dict[str, int] = {
 
 @dataclass(slots=True)
 class Step:
-    """Represent either a drone's current state or one completed move."""
+    """Represent a drone current state."""
 
-    turn: int
-    label: str
-    zone: str | None = None
-    is_link: bool = False
-    src: str | None = None
+    zone: str | None
     dst: str | None = None
     arrival_turn: int | None = None
     visited: set[str] = field(default_factory=set)
+
+    @property
+    def in_transit(self) -> bool:
+        """Return whether the drone is currently inside a link."""
+        return self.zone is None
 
 
 class SimulationEngine:
@@ -81,11 +82,15 @@ class SimulationEngine:
             if zone_name == self.end_hub:
                 return current_cost
 
-            for neighbor, _ in self.graph.get_neighbors(zone_name):
+            for neighbor_name, _ in self.graph.get_neighbors(zone_name):
                 if (
-                    neighbor.name in forbidden
-                    and neighbor.name != self.end_hub
+                    neighbor_name in forbidden
+                    and neighbor_name != self.end_hub
                 ):
+                    continue
+
+                neighbor = self.graph.get_zone(neighbor_name)
+                if neighbor is None:
                     continue
 
                 next_turns = turns + self._movement_cost(
@@ -102,7 +107,7 @@ class SimulationEngine:
                         next_turns,
                         next_priority,
                         counter,
-                        neighbor.name,
+                        neighbor_name,
                     ),
                 )
 
@@ -120,8 +125,12 @@ class SimulationEngine:
 
         candidates: list[tuple[int, int, int, int, str]] = []
 
-        for neighbor, _ in self.graph.get_neighbors(state.zone):
-            dst = neighbor.name
+        for neighbor_name, _ in self.graph.get_neighbors(state.zone):
+            dst = neighbor_name
+            neighbor = self.graph.get_zone(dst)
+
+            if neighbor is None:
+                continue
 
             if dst in state.visited and dst != self.end_hub:
                 continue
@@ -189,6 +198,9 @@ class SimulationEngine:
         if zone is None:
             return False
 
+        if zone.max_drones is None:
+            return True
+
         return (
             occupancy[zone_name] + next_arrivals[zone_name]
             < zone.max_drones
@@ -213,8 +225,6 @@ class SimulationEngine:
         for drone_index in range(1, self.drones_count + 1):
             drone_name = f"D{drone_index}"
             self.drone_steps[drone_name] = Step(
-                turn=0,
-                label=self.start_hub,
                 zone=self.start_hub,
                 visited={self.start_hub},
             )
@@ -237,6 +247,7 @@ class SimulationEngine:
         delivered: set[str],
         occupancy: Counter[str],
         turn_moves: list[str],
+        next_arrivals: Counter[str],
     ) -> set[str]:
         """Complete every mandatory restricted-zone arrival."""
         arrived: set[str] = set()
@@ -247,7 +258,7 @@ class SimulationEngine:
         ):
             state = self.drone_steps[drone_name]
 
-            if not state.is_link or state.arrival_turn != turn:
+            if not state.in_transit or state.arrival_turn != turn:
                 continue
             if state.dst is None:
                 raise PathNotFoundError(
@@ -261,17 +272,14 @@ class SimulationEngine:
 
             if (
                 not self._is_terminal(dst)
+                and zone.max_drones is not None
                 and occupancy[dst] >= zone.max_drones
             ):
                 raise PathNotFoundError(
                     f"No arrival capacity for {drone_name} at {dst}"
                 )
 
-            state.turn = turn
-            state.label = dst
             state.zone = dst
-            state.is_link = False
-            state.src = None
             state.dst = None
             state.arrival_turn = None
             state.visited.add(dst)
@@ -317,24 +325,18 @@ class SimulationEngine:
         if not self._is_terminal(src):
             occupancy[src] -= 1
 
-        state.turn = turn
-        state.src = src
         state.dst = dst
 
         if destination.zone_type == "restricted":
             label = f"{src}-{dst}"
-            state.label = label
             state.zone = None
-            state.is_link = True
             state.arrival_turn = turn + 1
             next_arrivals[dst] += 1
 
             turn_moves.append(self._format_move(drone_name, label))
             return
 
-        state.label = dst
         state.zone = dst
-        state.is_link = False
         state.arrival_turn = None
         state.visited.add(dst)
 
@@ -371,7 +373,6 @@ class SimulationEngine:
 
         self._initialize_drones()
         delivered: set[str] = set()
-        arrival_reservations: dict[int, Counter[str]] = {}
         turn = 0
 
         while len(delivered) < self.drones_count:
@@ -380,16 +381,13 @@ class SimulationEngine:
             link_usage: Counter[tuple[str, str]] = Counter()
             occupancy = self._current_occupancy(delivered)
 
-            arrival_reservations.pop(turn, None)
+            next_arrivals: Counter[str] = Counter()
             arrived = self._process_arrivals(
                 turn,
                 delivered,
                 occupancy,
                 turn_moves,
-            )
-            next_arrivals = arrival_reservations.setdefault(
-                turn + 1,
-                Counter(),
+                next_arrivals,
             )
 
             movable = [
@@ -398,7 +396,7 @@ class SimulationEngine:
                 if (
                     drone_name not in delivered
                     and drone_name not in arrived
-                    and not state.is_link
+                    and not state.in_transit
                 )
             ]
             movable.sort(key=self._drone_order_key)
