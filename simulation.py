@@ -53,7 +53,7 @@ class SimulationEngine:
         return 2 if zone_type == "restricted" else 1
 
     def _is_terminal(self, zone_name: str) -> bool:
-        """Return whether a zone has unlimited occupancy."""
+        """Return whether a zone has unlimited capacity."""
         return zone_name in {self.start_hub, self.end_hub}
 
     def _path_cost(
@@ -116,7 +116,7 @@ class SimulationEngine:
     def _candidate_destinations(
         self,
         state: Step,
-        occupancy: Counter[str],
+        capacity: Counter[str],
         next_arrivals: Counter[str],
     ) -> list[str]:
         """Return safe next zones ordered by route cost and congestion."""
@@ -152,7 +152,7 @@ class SimulationEngine:
                 ZONE_PRIO.get(neighbor.zone_type, 1)
                 + remaining[1]
             )
-            congestion = occupancy[dst] + next_arrivals[dst]
+            congestion = capacity[dst] + next_arrivals[dst]
 
             candidates.append(
                 (
@@ -187,10 +187,10 @@ class SimulationEngine:
     def _has_zone_capacity(
         self,
         zone_name: str,
-        occupancy: Counter[str],
+        capacity: Counter[str],
         next_arrivals: Counter[str],
     ) -> bool:
-        """Check live occupancy and already-guaranteed next arrivals."""
+        """Check live capacity and already-guaranteed next arrivals."""
         if self._is_terminal(zone_name):
             return True
 
@@ -202,7 +202,7 @@ class SimulationEngine:
             return True
 
         return (
-            occupancy[zone_name] + next_arrivals[zone_name]
+            capacity[zone_name] + next_arrivals[zone_name]
             < zone.max_drones
         )
 
@@ -229,23 +229,23 @@ class SimulationEngine:
                 visited={self.start_hub},
             )
 
-    def _current_occupancy(self, delivered: set[str]) -> Counter[str]:
+    def _current_capacity(self, delivered: set[str]) -> Counter[str]:
         """Count drones currently occupying limited hubs."""
-        occupancy: Counter[str] = Counter()
+        capacity: Counter[str] = Counter()
 
         for drone_name, state in self.drone_steps.items():
             if drone_name in delivered or state.zone is None:
                 continue
             if not self._is_terminal(state.zone):
-                occupancy[state.zone] += 1
+                capacity[state.zone] += 1
 
-        return occupancy
+        return capacity
 
     def _process_arrivals(
         self,
         turn: int,
         delivered: set[str],
-        occupancy: Counter[str],
+        capacity: Counter[str],
         turn_moves: list[str],
     ) -> set[str]:
         """Complete every mandatory restricted-zone arrival."""
@@ -272,7 +272,7 @@ class SimulationEngine:
             if (
                 not self._is_terminal(dst)
                 and zone.max_drones is not None
-                and occupancy[dst] >= zone.max_drones
+                and capacity[dst] >= zone.max_drones
             ):
                 raise PathNotFoundError(
                     f"No arrival capacity for {drone_name} at {dst}"
@@ -284,7 +284,7 @@ class SimulationEngine:
             state.visited.add(dst)
 
             if not self._is_terminal(dst):
-                occupancy[dst] += 1
+                capacity[dst] += 1
 
             turn_moves.append(self._format_move(drone_name, dst))
             arrived.add(drone_name)
@@ -299,7 +299,7 @@ class SimulationEngine:
         drone_name: str,
         dst: str,
         turn: int,
-        occupancy: Counter[str],
+        capacity: Counter[str],
         next_arrivals: Counter[str],
         link_usage: Counter[tuple[str, str]],
         delivered: set[str],
@@ -322,7 +322,7 @@ class SimulationEngine:
         link_usage[pair] += 1
 
         if not self._is_terminal(src):
-            occupancy[src] -= 1
+            capacity[src] -= 1
 
         state.dst = dst
 
@@ -340,7 +340,7 @@ class SimulationEngine:
         state.visited.add(dst)
 
         if not self._is_terminal(dst):
-            occupancy[dst] += 1
+            capacity[dst] += 1
 
         turn_moves.append(self._format_move(drone_name, dst))
 
@@ -378,13 +378,13 @@ class SimulationEngine:
             turn += 1
             turn_moves: list[str] = []
             link_usage: Counter[tuple[str, str]] = Counter()
-            occupancy = self._current_occupancy(delivered)
+            capacity = self._current_capacity(delivered)
 
             next_arrivals: Counter[str] = Counter()
             arrived = self._process_arrivals(
                 turn,
                 delivered,
-                occupancy,
+                capacity,
                 turn_moves,
             )
 
@@ -406,7 +406,7 @@ class SimulationEngine:
 
                 for dst in self._candidate_destinations(
                     state,
-                    occupancy,
+                    capacity,
                     next_arrivals,
                 ):
                     if not self._has_link_capacity(
@@ -417,7 +417,7 @@ class SimulationEngine:
                         continue
                     if not self._has_zone_capacity(
                         dst,
-                        occupancy,
+                        capacity,
                         next_arrivals,
                     ):
                         continue
@@ -426,7 +426,7 @@ class SimulationEngine:
                         drone_name,
                         dst,
                         turn,
-                        occupancy,
+                        capacity,
                         next_arrivals,
                         link_usage,
                         delivered,
