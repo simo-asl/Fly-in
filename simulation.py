@@ -247,7 +247,6 @@ class SimulationEngine:
         delivered: set[str],
         occupancy: Counter[str],
         turn_moves: list[str],
-        next_arrivals: Counter[str],
     ) -> set[str]:
         """Complete every mandatory restricted-zone arrival."""
         arrived: set[str] = set()
@@ -387,7 +386,6 @@ class SimulationEngine:
                 delivered,
                 occupancy,
                 turn_moves,
-                next_arrivals,
             )
 
             movable = [
